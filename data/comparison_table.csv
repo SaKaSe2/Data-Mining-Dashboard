@@ -1,0 +1,5 @@
+Eksperimen,Accuracy,Precision,Recall,F1-Score,Accuracy_Std,Jumlah_Fitur,Fitur
+Eks-1: RF Baseline,0.624,0.6172,0.624,0.6147,0.0084,13,"['Year', 'Average_Temperature_C', 'Total_Precipitation_mm', 'CO2_Emissions_MT', 'Extreme_Weather_Events', 'Irrigation_Access_%', 'Pesticide_Use_KG_per_HA', 'Fertilizer_Use_KG_per_HA', 'Soil_Health_Index', 'Economic_Impact_Million_USD', 'Economic_Impact_Log', 'Chemical_Usage_PCA', 'Temp_Category']"
+Eks-2: RF + Chi2,0.6212,0.6147,0.6212,0.6134,0.0073,7,"['Year', 'Average_Temperature_C', 'Total_Precipitation_mm', 'CO2_Emissions_MT', 'Economic_Impact_Million_USD', 'Economic_Impact_Log', 'Temp_Category']"
+Eks-3: RF + RFE,0.6207,0.614,0.6207,0.6125,0.0083,7,"['Average_Temperature_C', 'Total_Precipitation_mm', 'CO2_Emissions_MT', 'Soil_Health_Index', 'Economic_Impact_Million_USD', 'Economic_Impact_Log', 'Temp_Category']"
+Eks-4: RF + Tuned,0.6213,0.615,0.6213,0.6137,0.0077,7,"['Year', 'Average_Temperature_C', 'Total_Precipitation_mm', 'CO2_Emissions_MT', 'Economic_Impact_Million_USD', 'Economic_Impact_Log', 'Temp_Category']"
