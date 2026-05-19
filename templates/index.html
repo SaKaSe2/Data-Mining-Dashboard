@@ -554,6 +554,151 @@
 						</script>
 						{% endif %}
 
+						<!-- BEGIN: API TESTING SECTION -->
+						<div class="col-12 mt-4">
+							<div class="row row-cards">
+								<div class="col-12">
+									<h2 class="page-title mb-3">Pengujian Model Lanjutan (Sesuai Jupyter Notebook)</h2>
+								</div>
+								
+								<!-- Single Prediction Testing -->
+								<div class="col-md-6">
+									<div class="card" style="height: 100%;">
+										<div class="card-header">
+											<h3 class="card-title">Single Prediction Testing</h3>
+										</div>
+										<div class="card-body">
+											<p class="text-secondary">Skenario: Petani mencoba memprediksi potensi panen berdasarkan data lahan dan iklimnya.</p>
+											<div class="mb-3">
+												<label class="form-label">Data Input (JSON)</label>
+												<textarea id="single-input" class="form-control" rows="8" style="font-family: monospace;">{
+    "Year": 2024,
+    "Country": "Indonesia", 
+    "Region": "Jawa Timur",
+    "Crop_Type": "Rice",
+    "Average_Temperature_C": 28.5,
+    "Total_Precipitation_mm": 2100.5,
+    "CO2_Emissions_MT": 15.2,
+    "Extreme_Weather_Events": 3,
+    "Irrigation_Access_%": 85.0,
+    "Pesticide_Use_KG_per_HA": 12.5,
+    "Fertilizer_Use_KG_per_HA": 45.0,
+    "Soil_Health_Index": 78.5,
+    "Adaptation_Strategies": "Water Management",
+    "Economic_Impact_Million_USD": 500.0
+}</textarea>
+											</div>
+											<button class="btn btn-primary w-100" id="btn-test-single">Jalankan Single Predict</button>
+											
+											<div id="single-result-container" class="mt-3 d-none">
+												<div class="alert alert-info" id="single-result"></div>
+											</div>
+										</div>
+									</div>
+								</div>
+								
+								<!-- Batch Prediction Testing -->
+								<div class="col-md-6">
+									<div class="card" style="height: 100%;">
+										<div class="card-header">
+											<h3 class="card-title">Batch Prediction Testing</h3>
+										</div>
+										<div class="card-body">
+											<p class="text-secondary">Skenario: Dinas pertanian memprediksi potensi panen dari 5 laporan lahan secara bersamaan (Diambil acak dari dataset historis).</p>
+											<button class="btn btn-success w-100 mb-3" id="btn-test-batch">Jalankan Batch Predict (Simulasi 5 Laporan)</button>
+											
+											<div class="table-responsive d-none" id="batch-result-container">
+												<table class="table table-vcenter card-table table-striped">
+													<thead>
+														<tr>
+															<th>Country</th>
+															<th>Crop</th>
+															<th>Temp (°C)</th>
+															<th>Precip (mm)</th>
+															<th>Fertilizer</th>
+															<th>[PREDIKSI]</th>
+															<th>[KEYAKINAN %]</th>
+														</tr>
+													</thead>
+													<tbody id="batch-result-body">
+													</tbody>
+												</table>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<script>
+						document.addEventListener('DOMContentLoaded', function() {
+							// Single Prediction
+							document.getElementById('btn-test-single').addEventListener('click', async function() {
+								const btn = this;
+								btn.classList.add('btn-loading');
+								try {
+									const inputData = JSON.parse(document.getElementById('single-input').value);
+									const res = await fetch('/api/predict_single', {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json' },
+										body: JSON.stringify(inputData)
+									});
+									const data = await res.json();
+									const resultDiv = document.getElementById('single-result-container');
+									const alertBox = document.getElementById('single-result');
+									
+									resultDiv.classList.remove('d-none');
+									if(data.prediction === 'Di Atas Rata-rata') {
+										alertBox.className = 'alert alert-success';
+									} else {
+										alertBox.className = 'alert alert-danger';
+									}
+									alertBox.innerHTML = `<strong>Prediksi:</strong> ${data.prediction} <br><strong>Tingkat Keyakinan:</strong> ${data.confidence}%`;
+									
+								} catch(e) {
+									alert('Format JSON tidak valid atau terjadi kesalahan server.');
+								} finally {
+									btn.classList.remove('btn-loading');
+								}
+							});
+
+							// Batch Prediction
+							document.getElementById('btn-test-batch').addEventListener('click', async function() {
+								const btn = this;
+								btn.classList.add('btn-loading');
+								try {
+									const res = await fetch('/api/predict_batch');
+									const data = await res.json();
+									
+									const tbody = document.getElementById('batch-result-body');
+									tbody.innerHTML = '';
+									
+									data.batch_results.forEach(row => {
+										const tr = document.createElement('tr');
+										const badgeClass = row.Prediction === 'Di Atas Rata-rata' ? 'bg-success' : 'bg-danger';
+										tr.innerHTML = `
+											<td>${row.Country}</td>
+											<td>${row.Crop_Type}</td>
+											<td>${row.Average_Temperature_C}</td>
+											<td>${row.Total_Precipitation_mm}</td>
+											<td>${row.Fertilizer_Use_KG_per_HA}</td>
+											<td><span class="badge ${badgeClass} text-white">${row.Prediction}</span></td>
+											<td><strong>${row.Confidence}%</strong></td>
+										`;
+										tbody.appendChild(tr);
+									});
+									
+									document.getElementById('batch-result-container').classList.remove('d-none');
+								} catch(e) {
+									alert('Terjadi kesalahan saat memanggil batch prediction.');
+								} finally {
+									btn.classList.remove('btn-loading');
+								}
+							});
+						});
+						</script>
+						<!-- END: API TESTING SECTION -->
+
 					</div>
 				</div>
 			</div>

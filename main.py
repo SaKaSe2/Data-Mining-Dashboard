@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -32,7 +32,7 @@ MODEL = None
 FEATURES = None
 CAT_FEATURES = None
 MEDIANS = {}
-CSV_PATH = os.path.abspath(os.path.join(BASE_DIR, '..', 'climate_change_impact_on_agriculture_2024_baru.csv'))
+CSV_PATH = os.path.join(BASE_DIR, 'data', 'train', 'train_data.csv')
 DF_VIZ = None
 LAST_STATE = None
 
@@ -164,6 +164,59 @@ async def read_eksperimen(request: Request):
         context.update(LAST_STATE)
         
     return templates.TemplateResponse(request=request, name="eksperimen.html", context=context)
+
+@app.post("/api/predict_single")
+async def api_predict_single(data: dict = Body(...)):
+    global MODEL, FEATURES, CAT_FEATURES, MEDIANS
+    # Jika tidak ada input yang diberikan, buat input default
+    df_input = pd.DataFrame([data])
+    for f in FEATURES:
+        if f not in df_input.columns and f not in CAT_FEATURES:
+            df_input[f] = MEDIANS.get(f, 0.0)
+            
+    df_processed = preprocess_new_data(df_input, FEATURES, CAT_FEATURES)
+    
+    pred_class = MODEL.predict(df_processed)
+    if len(pred_class.shape) > 1: pred_class = pred_class.flatten()
+    pred_class = pred_class[0]
+    
+    proba = MODEL.predict_proba(df_processed)[0]
+    class_idx = list(MODEL.classes_).index(pred_class)
+    confidence = proba[class_idx] * 100
+    
+    return {"prediction": pred_class, "confidence": round(confidence, 2)}
+
+@app.get("/api/predict_batch")
+async def api_predict_batch():
+    global MODEL, FEATURES, CAT_FEATURES, DF_VIZ
+    # Simulasi seperti di ipynb: ambil 5 data secara acak dari DF_VIZ
+    df_sample = DF_VIZ.sample(n=5)
+    df_input = df_sample.drop(columns=['Crop_Yield_MT_per_HA', 'Yield_Class_Binary'], errors='ignore')
+    
+    df_processed = preprocess_new_data(df_input, FEATURES, CAT_FEATURES)
+    
+    preds = MODEL.predict(df_processed)
+    probas = MODEL.predict_proba(df_processed)
+    classes = list(MODEL.classes_)
+    
+    results = []
+    for i in range(len(df_sample)):
+        p_class = preds[i]
+        if isinstance(p_class, (list, np.ndarray)): p_class = p_class[0]
+        c_idx = classes.index(p_class)
+        conf = probas[i][c_idx] * 100
+        
+        row_dict = df_sample.iloc[i].to_dict()
+        results.append({
+            "Country": row_dict.get("Country", "-"),
+            "Crop_Type": row_dict.get("Crop_Type", "-"),
+            "Average_Temperature_C": round(float(row_dict.get("Average_Temperature_C", 0)), 2),
+            "Total_Precipitation_mm": round(float(row_dict.get("Total_Precipitation_mm", 0)), 2),
+            "Fertilizer_Use_KG_per_HA": round(float(row_dict.get("Fertilizer_Use_KG_per_HA", 0)), 2),
+            "Prediction": p_class,
+            "Confidence": round(conf, 2)
+        })
+    return {"batch_results": results}
 
 if __name__ == "__main__":
     import uvicorn

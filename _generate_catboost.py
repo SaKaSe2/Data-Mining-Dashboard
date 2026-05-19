@@ -5,9 +5,9 @@ import joblib
 from catboost import CatBoostClassifier
 
 # Path ke file CSV baru (harus di root project atau disesuaikan)
-CSV_PATH = '../climate_change_impact_on_agriculture_2024_baru.csv'
-MODEL_PATH = 'data/catboost_model.cbm'
-FEATURES_PATH = 'data/catboost_features.pkl'
+CSV_PATH = 'data/train/train_data.csv'
+MODEL_PATH = 'data/eksport/catboost_model.cbm'
+FEATURES_PATH = 'data/eksport/catboost_features.pkl'
 
 def clean_numeric_dots(x):
     if isinstance(x, str):
@@ -124,10 +124,10 @@ def main():
     cat_model.fit(X, y)
     
     # Simpan model
-    os.makedirs('data', exist_ok=True)
+    os.makedirs('data/eksport', exist_ok=True)
     cat_model.save_model(MODEL_PATH)
     joblib.dump(list(X.columns), FEATURES_PATH)
-    joblib.dump(cat_features, 'data/catboost_cat_features.pkl')
+    joblib.dump(cat_features, 'data/eksport/catboost_cat_features.pkl')
     
     print(f"[SUCCESS] Model disimpan ke '{MODEL_PATH}'")
     print(f"[SUCCESS] Daftar fitur disimpan ke '{FEATURES_PATH}'")
