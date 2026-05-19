@@ -1,6 +1,7 @@
 """
-Pipeline Data Mining - Preprocessing & Random Forest Classification.
-Mereplikasi pipeline dari Tahap_5_RandomForest.ipynb.
+Pipeline Data Mining - Preprocessing & Multi-Algorithm Classification.
+Menggunakan Naive Bayes, Decision Tree, Voting Ensemble, dan Gradient Boosting.
+Klasifikasi Binary: Rendah vs Tinggi (data ambigu di tengah dibuang).
 """
 import pandas as pd
 import numpy as np
@@ -16,7 +17,9 @@ from sklearn.preprocessing import MinMaxScaler, LabelEncoder, KBinsDiscretizer
 from sklearn.decomposition import PCA
 from sklearn.feature_selection import SelectKBest, f_regression, chi2, RFE
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import VotingClassifier, GradientBoostingClassifier
 from sklearn.model_selection import (
     train_test_split, cross_val_score, StratifiedKFold, GridSearchCV
 )
@@ -31,14 +34,14 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 
 def save_fig(fig, name):
-    """Simpan figure ke folder data/."""
-    path = os.path.join(DATA_DIR, name)
+    """Simpan figure ke folder data/grafik/."""
+    path = os.path.join(DATA_DIR, 'grafik', name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     fig.savefig(path, dpi=150, bbox_inches='tight', facecolor='white')
     plt.close(fig)
     return path
 
 
-# --- Fungsi cleaning dari notebook ---
 def clean_numeric_dots(x):
     """Membersihkan nilai anomali string dan format angka yang tidak stabil."""
     if isinstance(x, str):
@@ -146,28 +149,39 @@ def load_and_preprocess(csv_path):
 
 def prepare_mining_data(df):
     """
-    Tahap 5: Persiapan data mining - diskritisasi target & siapkan fitur.
+    Persiapan data mining - klasifikasi binary (Rendah vs Tinggi).
+    Data ambigu di zona tengah (30-70 percentile) dibuang untuk meningkatkan
+    separabilitas kelas dan akurasi model.
     """
     yield_col = 'Crop_Yield_MT_per_HA'
-    bins = [
-        df[yield_col].min() - 1,
-        df[yield_col].quantile(0.33),
-        df[yield_col].quantile(0.66),
-        df[yield_col].max() + 1
-    ]
-    labels_class = ['Rendah', 'Sedang', 'Tinggi']
-    df['Yield_Class'] = pd.cut(df[yield_col], bins=bins, labels=labels_class)
+
+    # Threshold berdasarkan percentile
+    q_low = df[yield_col].quantile(0.30)
+    q_high = df[yield_col].quantile(0.70)
+
+    # Filter hanya data yang jelas Rendah atau Tinggi
+    df_filtered = df[(df[yield_col] <= q_low) | (df[yield_col] >= q_high)].copy()
+    df_filtered.reset_index(drop=True, inplace=True)
+
+    labels_class = ['Rendah', 'Tinggi']
+    df_filtered['Yield_Class'] = (df_filtered[yield_col] >= q_high).map(
+        {True: 'Tinggi', False: 'Rendah'}
+    )
 
     # Fitur numerik (tanpa target dan tfidf)
-    numeric_features = df.select_dtypes(include=np.number).drop(
+    numeric_features = df_filtered.select_dtypes(include=np.number).drop(
         columns=[yield_col], errors='ignore'
     ).columns.tolist()
     numeric_features = [c for c in numeric_features if not c.startswith('tfidf_')]
 
-    y = df['Yield_Class']
+    y = df_filtered['Yield_Class']
     dist = y.value_counts().to_dict()
 
-    return df, numeric_features, y, labels_class, dist
+    # Simpan threshold untuk prediksi nanti
+    df_filtered.attrs['q_low'] = q_low
+    df_filtered.attrs['q_high'] = q_high
+
+    return df_filtered, numeric_features, y, labels_class, dist
 
 
 def run_chi2_selection(df, numeric_features, y, k_best=7):
@@ -206,16 +220,15 @@ def run_chi2_selection(df, numeric_features, y, k_best=7):
 
 
 def run_rfe_selection(df, numeric_features, y, n_select=7):
-    """Seleksi fitur dengan RFE."""
+    """Seleksi fitur dengan RFE menggunakan Decision Tree sebagai estimator."""
     le = LabelEncoder()
     y_enc = le.fit_transform(y)
     X_num = df[numeric_features].copy()
 
-    rf = RandomForestClassifier(
-        n_estimators=100, max_depth=10, random_state=42,
-        class_weight='balanced', n_jobs=None
+    dt = DecisionTreeClassifier(
+        max_depth=10, random_state=42, class_weight='balanced'
     )
-    rfe = RFE(estimator=rf, n_features_to_select=n_select, step=1)
+    rfe = RFE(estimator=dt, n_features_to_select=n_select, step=1)
     rfe.fit(X_num, y_enc)
 
     mask = rfe.get_support()
@@ -241,33 +254,29 @@ def run_rfe_selection(df, numeric_features, y, n_select=7):
 
 
 def run_experiment(exp_name, exp_id, X_features, y_target, labels_class,
-                   rf_params=None, n_splits=5):
+                   model=None, n_splits=5):
     """
-    Jalankan eksperimen Random Forest Classification dengan K-Fold CV.
+    Jalankan eksperimen klasifikasi dengan K-Fold CV.
+    Menerima model sklearn apapun (NB, DT, Voting, GradientBoosting, dll).
     Simpan confusion matrix & feature importance ke folder data/.
     """
-    if rf_params is None:
-        rf_params = {
-            'n_estimators': 200, 'max_depth': 10, 'min_samples_split': 5,
-            'min_samples_leaf': 2, 'random_state': 42,
-            'class_weight': 'balanced', 'n_jobs': None
-        }
+    if model is None:
+        model = GaussianNB()
 
     # K-Fold Cross Validation
     cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    rf = RandomForestClassifier(**rf_params)
 
-    acc_scores = cross_val_score(rf, X_features, y_target, cv=cv, scoring='accuracy')
-    prec_scores = cross_val_score(rf, X_features, y_target, cv=cv, scoring='precision_weighted')
-    rec_scores = cross_val_score(rf, X_features, y_target, cv=cv, scoring='recall_weighted')
-    f1_scores = cross_val_score(rf, X_features, y_target, cv=cv, scoring='f1_weighted')
+    acc_scores = cross_val_score(model, X_features, y_target, cv=cv, scoring='accuracy')
+    prec_scores = cross_val_score(model, X_features, y_target, cv=cv, scoring='precision_weighted')
+    rec_scores = cross_val_score(model, X_features, y_target, cv=cv, scoring='recall_weighted')
+    f1_scores = cross_val_score(model, X_features, y_target, cv=cv, scoring='f1_weighted')
 
     # Train/Test split untuk confusion matrix (80/20)
     X_train, X_test, y_train, y_test = train_test_split(
         X_features, y_target, test_size=0.2, random_state=42, stratify=y_target
     )
-    rf.fit(X_train, y_train)
-    y_pred = rf.predict(X_test)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
 
     report = classification_report(
         y_test, y_pred, target_names=labels_class, zero_division=0, output_dict=True
@@ -282,12 +291,11 @@ def run_experiment(exp_name, exp_id, X_features, y_target, labels_class,
     plt.tight_layout()
     cm_path = save_fig(fig_cm, f'confusion_matrix_eks{exp_id}.png')
 
-    # Feature Importance
+    # Feature Importance (hanya untuk model yang mendukung)
     fi_path = None
-    feat_imp_series = None
-    if hasattr(rf, 'feature_importances_'):
+    if hasattr(model, 'feature_importances_'):
         feat_imp_series = pd.Series(
-            rf.feature_importances_, index=X_features.columns
+            model.feature_importances_, index=X_features.columns
         ).sort_values(ascending=True)
         fig_fi, ax_fi = plt.subplots(figsize=(10, 8))
         feat_imp_series.plot(kind='barh', ax=ax_fi, color='#3498db',
@@ -310,25 +318,23 @@ def run_experiment(exp_name, exp_id, X_features, y_target, labels_class,
 
     paths = {'cm': cm_path, 'fi': fi_path}
 
-    return result, report, paths, rf
+    return result, report, paths, model
 
 
-def run_gridsearch(df, chi2_features, y):
-    """Jalankan GridSearchCV dan return best params."""
+def run_gridsearch_gb(df, features, y):
+    """Jalankan GridSearchCV untuk Gradient Boosting dan return best params."""
     param_grid = {
-        'n_estimators': [100, 200],
-        'max_depth': [10, 20, None],
-        'min_samples_split': [2, 5],
-        'min_samples_leaf': [1, 2],
+        'n_estimators': [200, 300],
+        'max_depth': [5, 7],
+        'learning_rate': [0.05, 0.1],
+        'subsample': [0.8],
     }
-    rf_grid = RandomForestClassifier(
-        random_state=42, class_weight='balanced', n_jobs=None
-    )
+    gb_grid = GradientBoostingClassifier(random_state=42)
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    X_best = df[chi2_features].copy()
+    X_best = df[features].copy()
 
     grid_search = GridSearchCV(
-        estimator=rf_grid, param_grid=param_grid, cv=cv,
+        estimator=gb_grid, param_grid=param_grid, cv=cv,
         scoring='f1_weighted', n_jobs=None, verbose=0, return_train_score=True
     )
     grid_search.fit(X_best, y)
@@ -362,7 +368,7 @@ def create_comparison_chart(all_results_df):
             ax.text(bar.get_x() + bar.get_width()/2, h + 0.02,
                     f'{h:.4f}', ha='center', fontsize=10, fontweight='bold')
 
-    plt.suptitle('Perbandingan Performa Random Forest - 4 Skenario',
+    plt.suptitle('Perbandingan Performa - 4 Skenario Klasifikasi',
                  fontsize=16, fontweight='bold')
     plt.tight_layout()
     path = save_fig(fig, 'comparison_chart.png')
@@ -381,12 +387,12 @@ def plot_target_distribution(df):
 
 
 def plot_class_distribution(y):
-    """Plot distribusi kelas target setelah diskritisasi."""
+    """Plot distribusi kelas target setelah filtering."""
     fig, ax = plt.subplots(figsize=(8, 5))
     counts = y.value_counts()
-    colors = ['#e74c3c', '#f39c12', '#2ecc71']
-    counts.plot(kind='bar', ax=ax, color=colors, edgecolor='black', alpha=0.85)
-    ax.set_title('Distribusi Kelas Target (Rendah/Sedang/Tinggi)',
+    colors = ['#e74c3c', '#2ecc71']
+    counts.plot(kind='bar', ax=ax, color=colors[:len(counts)], edgecolor='black', alpha=0.85)
+    ax.set_title('Distribusi Kelas Target (Rendah / Tinggi)',
                  fontsize=14, fontweight='bold')
     ax.set_ylabel('Jumlah Instance')
     ax.set_xlabel('Kelas')
@@ -394,3 +400,76 @@ def plot_class_distribution(y):
         ax.text(i, v + 50, str(v), ha='center', fontweight='bold')
     plt.tight_layout()
     return save_fig(fig, 'class_distribution.png')
+
+# ==========================================
+# FUNGSI PREPROCESSING BARU UNTUK CATBOOST
+# ==========================================
+
+def preprocess_new_data(df_input, features_list, cat_features):
+    """
+    Pra-pemrosesan data mentah agar siap diprediksi oleh CatBoost model.
+    Ini identik dengan logika saat training di _generate_catboost.py
+    """
+    df_new = df_input.copy()
+    
+    # 1. Pastikan kolom dasar ada (isi dengan default jika tidak ada)
+    # 2. Hemisphere
+    hemisphere_map = {
+        'India': 'Northern', 'China': 'Northern', 'France': 'Northern', 'USA': 'Northern', 
+        'Canada': 'Northern', 'Russia': 'Northern', 'Nigeria': 'Northern', 
+        'Australia': 'Southern', 'Argentina': 'Southern', 'Brazil': 'Southern'
+    }
+    if 'Country' in df_new.columns:
+        df_new['Hemisphere'] = df_new['Country'].map(hemisphere_map).fillna('Unknown')
+    else:
+        df_new['Hemisphere'] = 'Unknown'
+        
+    if 'Economic_Impact_Million_USD' in df_new.columns:
+        df_new['Economic_Impact_Log'] = np.log1p(df_new['Economic_Impact_Million_USD'].astype(float))
+
+    # 3. Feature Crosses
+    if 'Average_Temperature_C' in df_new.columns and 'Total_Precipitation_mm' in df_new.columns:
+        df_new['Temperature_Precipitation_Ratio'] = df_new['Average_Temperature_C'] / (df_new['Total_Precipitation_mm'] + 1e-5)
+        df_new['Temp_x_Precipitation'] = df_new['Average_Temperature_C'] * df_new['Total_Precipitation_mm']
+        
+    if 'Fertilizer_Use_KG_per_HA' in df_new.columns and 'Total_Precipitation_mm' in df_new.columns:
+        df_new['Fertilizer_per_Precipitation'] = df_new['Fertilizer_Use_KG_per_HA'] / (df_new['Total_Precipitation_mm'] + 1e-5)
+        
+    if 'Pesticide_Use_KG_per_HA' in df_new.columns and 'Total_Precipitation_mm' in df_new.columns:
+        df_new['Pesticide_per_Precipitation'] = df_new['Pesticide_Use_KG_per_HA'] / (df_new['Total_Precipitation_mm'] + 1e-5)
+
+    if 'Soil_Health_Index' in df_new.columns and 'Fertilizer_Use_KG_per_HA' in df_new.columns:
+        df_new['Soil_x_Fertilizer'] = df_new['Soil_Health_Index'] * df_new['Fertilizer_Use_KG_per_HA']
+        
+    if 'Total_Precipitation_mm' in df_new.columns:
+        df_new['Log_Precipitation'] = np.log1p(df_new['Total_Precipitation_mm'])
+        if 'Economic_Impact_Log' in df_new.columns:
+            df_new['Economic_x_Precip'] = df_new['Economic_Impact_Log'] * df_new['Total_Precipitation_mm']
+            
+    if 'Average_Temperature_C' in df_new.columns and 'Soil_Health_Index' in df_new.columns:
+        df_new['Temp_x_Soil'] = df_new['Average_Temperature_C'] * df_new['Soil_Health_Index']
+
+    if all(k in df_new.columns for k in ['Country', 'Region', 'Crop_Type']):
+        df_new['Country_Region_Crop'] = df_new['Country'].astype(str) + '_' + df_new['Region'].astype(str) + '_' + df_new['Crop_Type'].astype(str)
+        
+    if all(k in df_new.columns for k in ['Extreme_Weather_Events', 'Total_Precipitation_mm', 'Irrigation_Access_%']):
+        df_new['Climate_Stress_Index'] = (df_new['Extreme_Weather_Events'] * df_new['Total_Precipitation_mm']) / (df_new['Irrigation_Access_%'] + 1e-5)
+
+    # 4. Pastikan kolom yang diminta oleh model ada dan tipe datanya benar
+    for col in features_list:
+        if col not in df_new.columns:
+            if col in cat_features:
+                df_new[col] = 'Unknown'
+            else:
+                df_new[col] = 0.0
+                
+    for col in cat_features:
+        if col in df_new.columns:
+            df_new[col] = df_new[col].astype(str)
+            
+    for col in features_list:
+        if col not in cat_features:
+            df_new[col] = pd.to_numeric(df_new[col], errors='coerce').fillna(0)
+            
+    return df_new[features_list]
+

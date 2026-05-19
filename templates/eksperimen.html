@@ -1,0 +1,529 @@
+<!doctype html>
+<!--
+* Eksperimen Data Mining
+* Based on Tabler UI v1.4.0 (https://tabler.io)
+-->
+<html lang="id">
+<head>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+	<meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+	<title>{{ title }} - Data Mining Dashboard</title>
+
+	<!-- Tabler Core CSS (CDN) -->
+	<link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.css" rel="stylesheet"/>
+	<link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler-vendors.css" rel="stylesheet"/>
+	<link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler-themes.css" rel="stylesheet"/>
+
+	<!-- Custom Font (Inter) -->
+	<style>
+		@import url('https://rsms.me/inter/inter.css');
+		
+		/* Animasi Dimatikan */
+		body.disable-weather-animations .weather-rain,
+		body.disable-weather-animations .lightning-flash,
+		body.disable-weather-animations .weather-sun,
+		body.disable-weather-animations .sun-rays {
+			display: none !important;
+		}
+		
+		/* Weather Animation: Rain + Lightning */
+		.weather-rain {
+			position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+			pointer-events: none; z-index: 9999; overflow: hidden;
+		}
+		.raindrop {
+			position: absolute; top: -20px;
+			width: 2px; background: linear-gradient(transparent, rgba(120,180,255,0.6));
+			animation: rain-fall linear infinite;
+		}
+		@keyframes rain-fall {
+			0% { transform: translateY(-20px); opacity: 1; }
+			100% { transform: translateY(105vh); opacity: 0.3; }
+		}
+		.lightning-flash {
+			position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+			background: rgba(255,255,255,0.05); pointer-events: none; z-index: 9998;
+			animation: lightning 4s infinite;
+		}
+		@keyframes lightning {
+			0%, 89%, 91%, 93%, 100% { background: transparent; }
+			90% { background: rgba(255,255,255,0.15); }
+			92% { background: rgba(200,220,255,0.25); }
+		}
+
+		/* Weather Animation: Sun */
+		.weather-sun {
+			position: fixed; top: -80px; right: -80px;
+			width: 200px; height: 200px;
+			border-radius: 50%;
+			background: radial-gradient(circle, #ffe066 0%, #ffb300 40%, rgba(255,179,0,0) 70%);
+			box-shadow: 0 0 60px rgba(255,200,0,0.5), 0 0 120px rgba(255,200,0,0.2);
+			pointer-events: none; z-index: 9999;
+			animation: sun-pulse 3s ease-in-out infinite alternate;
+		}
+		@keyframes sun-pulse {
+			0% { box-shadow: 0 0 60px rgba(255,200,0,0.4), 0 0 120px rgba(255,200,0,0.15); transform: scale(1); }
+			100% { box-shadow: 0 0 80px rgba(255,200,0,0.6), 0 0 160px rgba(255,200,0,0.3); transform: scale(1.08); }
+		}
+		/* Sun rays rotating */
+		.sun-rays {
+			position: fixed; top: -100px; right: -100px;
+			width: 250px; height: 250px;
+			pointer-events: none; z-index: 9998;
+			animation: sun-rotate 20s linear infinite;
+		}
+		.sun-rays::before, .sun-rays::after {
+			content: ''; position: absolute; top: 50%; left: 50%;
+			width: 250px; height: 250px;
+			transform: translate(-50%, -50%);
+			background: conic-gradient(from 0deg, transparent 0deg, rgba(255,220,80,0.08) 10deg, transparent 20deg);
+			border-radius: 50%;
+		}
+		.sun-rays::after {
+			background: conic-gradient(from 15deg, transparent 0deg, rgba(255,220,80,0.06) 10deg, transparent 20deg);
+		}
+		@keyframes sun-rotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+	</style>
+	<!-- ApexCharts (Tabler native) -->
+	<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.0/dist/apexcharts.min.js"></script>
+</head>
+
+<body>
+	<!-- Theme Script -->
+	<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler-theme.js"></script>
+	<script>
+		(function() {
+			var isAnimDisabled = localStorage.getItem('disableAnimations') === 'true';
+			window.addEventListener('DOMContentLoaded', function() {
+				if (isAnimDisabled) { document.body.classList.add('disable-weather-animations'); }
+				var toggleBtn = document.getElementById('toggle-animation');
+				if (toggleBtn) {
+					toggleBtn.addEventListener('click', function(e) {
+						e.preventDefault();
+						isAnimDisabled = !isAnimDisabled;
+						localStorage.setItem('disableAnimations', isAnimDisabled);
+						if (isAnimDisabled) document.body.classList.add('disable-weather-animations');
+						else document.body.classList.remove('disable-weather-animations');
+					});
+				}
+			});
+		})();
+	</script>
+
+	<div class="page">
+
+		<!-- BEGIN: TOP NAVBAR -->
+		<header class="navbar navbar-expand-md d-print-none">
+			<div class="container-xl">
+				<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+					<span class="navbar-toggler-icon"></span>
+				</button>
+
+				<!-- Logo -->
+				<div class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+					<a href="/" style="text-decoration: none;">
+						<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-plant-2" width="28" height="28" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M2 9a10 10 0 1 0 20 0" /><path d="M12 19a10 10 0 0 1 10 -10" /><path d="M2 9a10 10 0 0 1 10 10" /><path d="M12 4a9.7 9.7 0 0 1 2.99 7.5" /><path d="M9.01 11.5a9.7 9.7 0 0 1 2.99 -7.5" /></svg>
+						<span class="ms-1 fw-bold">Climate AI</span>
+					</a>
+				</div>
+
+				<!-- Right Side: Theme Toggle & User -->
+				<div class="navbar-nav flex-row order-md-last">
+					
+					<!-- Animation Toggle -->
+					<div class="d-none d-md-flex me-2">
+						<div class="nav-item">
+							<a href="#" class="nav-link px-0" id="toggle-animation" title="Toggle Animasi Cuaca" data-bs-toggle="tooltip" data-bs-placement="bottom">
+								<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-movie-off" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+								  <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+								  <path d="M8 4h10a2 2 0 0 1 2 2v10m-.592 3.42c-.362 .359 -.859 .58 -1.408 .58h-12a2 2 0 0 1 -2 -2v-12c0 -.539 .213 -1.028 .56 -1.388"></path>
+								  <path d="M8 8v12"></path>
+								  <path d="M16 4v8m0 4v4"></path>
+								  <path d="M4 8h4"></path>
+								  <path d="M4 16h4"></path>
+								  <path d="M4 12h8m4 0h4"></path>
+								  <path d="M16 8h4"></path>
+								  <path d="M3 3l18 18"></path>
+								</svg>
+							</a>
+						</div>
+					</div>
+
+					<!-- Theme Toggle -->
+					<div class="d-none d-md-flex me-3">
+						<div class="nav-item">
+							<a href="?theme=dark" class="nav-link px-0 hide-theme-dark" title="Mode Gelap" data-bs-toggle="tooltip" data-bs-placement="bottom">
+								<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /></svg>
+							</a>
+							<a href="?theme=light" class="nav-link px-0 hide-theme-light" title="Mode Terang" data-bs-toggle="tooltip" data-bs-placement="bottom">
+								<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7" /></svg>
+							</a>
+						</div>
+					</div>
+
+					<!-- User Avatar -->
+					<div class="nav-item dropdown">
+						<a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+							<span class="avatar avatar-sm bg-blue-lt">DM</span>
+							<div class="d-none d-xl-block ps-2">
+								<div>Data Mining</div>
+								<div class="mt-1 small text-secondary">Semester 6</div>
+							</div>
+						</a>
+					</div>
+				</div>
+			</div>
+		</header>
+		<!-- END: TOP NAVBAR -->
+
+		<!-- BEGIN: SUB NAVBAR -->
+		<header class="navbar-expand-md">
+			<div class="collapse navbar-collapse" id="navbar-menu">
+				<div class="navbar">
+					<div class="container-xl">
+						<ul class="navbar-nav">
+							<li class="nav-item">
+								<a class="nav-link" href="/">
+									<span class="nav-link-icon d-md-none d-lg-inline-block">
+										<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l-2 0l9 -9l9 9l-2 0" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" /></svg>
+									</span>
+									<span class="nav-link-title">Dashboard</span>
+								</a>
+							</li>
+							<li class="nav-item active">
+								<a class="nav-link" href="/eksperimen">
+									<span class="nav-link-icon d-md-none d-lg-inline-block">
+										<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3l0 8l-5 5.5a1.5 1.5 0 0 0 1 2.5h14a1.5 1.5 0 0 0 1 -2.5l-5 -5.5l0 -8" /><path d="M7 3l10 0" /></svg>
+									</span>
+									<span class="nav-link-title">Eksperimen</span>
+								</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+		</header>
+		<!-- END: SUB NAVBAR -->
+
+		<!-- BEGIN: PAGE WRAPPER -->
+		<div class="page-wrapper">
+			<!-- Page Header -->
+			<div class="page-header d-print-none">
+				<div class="container-xl">
+					<div class="page-pretitle">Performance Metrics</div>
+					<h2 class="page-title">Hasil Evaluasi &amp; Pelatihan Model</h2>
+				</div>
+			</div>
+
+			<!-- Page Body -->
+			<div class="page-body">
+				<div class="container-xl">
+					
+					{% if has_result %}
+					<!-- Weather Animations Synchronized from Dashboard -->
+					{% if prediction_result != 'Di Atas Rata-rata' %}
+					<!-- Rain + Lightning -->
+					<div class="weather-rain" id="rain-container"></div>
+					<div class="lightning-flash"></div>
+					<script>
+					(function() {
+						var container = document.getElementById('rain-container');
+						if(container) {
+							for (var i = 0; i < 80; i++) {
+								var drop = document.createElement('div');
+								drop.className = 'raindrop';
+								drop.style.left = Math.random() * 100 + '%';
+								drop.style.height = (Math.random() * 18 + 10) + 'px';
+								drop.style.animationDuration = (Math.random() * 0.5 + 0.6) + 's';
+								drop.style.animationDelay = (Math.random() * 2) + 's';
+								container.appendChild(drop);
+							}
+						}
+					})();
+					</script>
+					{% else %}
+					<!-- Sun -->
+					<div class="sun-rays"></div>
+					<div class="weather-sun"></div>
+					{% endif %}
+					{% endif %}
+
+					<div class="row row-deck row-cards">
+
+						<!-- Stat Cards (4 kolom) -->
+						<div class="col-sm-6 col-lg-3">
+							<div class="card card-sm">
+								<div class="card-body">
+									<div class="row align-items-center">
+										<div class="col-auto">
+											<span class="bg-primary text-white avatar">
+												<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
+											</span>
+										</div>
+										<div class="col">
+											<div class="font-weight-medium">Akurasi</div>
+											<div class="text-secondary">~84.5%</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-sm-6 col-lg-3">
+							<div class="card card-sm">
+								<div class="card-body">
+									<div class="row align-items-center">
+										<div class="col-auto">
+											<span class="bg-green text-white avatar">
+												<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 12l3 2" /><path d="M12 7v5" /></svg>
+											</span>
+										</div>
+										<div class="col">
+											<div class="font-weight-medium">Precision</div>
+											<div class="text-secondary">~85.2%</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-sm-6 col-lg-3">
+							<div class="card card-sm">
+								<div class="card-body">
+									<div class="row align-items-center">
+										<div class="col-auto">
+											<span class="bg-orange text-white avatar">
+												<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 7v5l3 3" /></svg>
+											</span>
+										</div>
+										<div class="col">
+											<div class="font-weight-medium">Recall</div>
+											<div class="text-secondary">~83.9%</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-sm-6 col-lg-3">
+							<div class="card card-sm">
+								<div class="card-body">
+									<div class="row align-items-center">
+										<div class="col-auto">
+											<span class="bg-purple text-white avatar">
+												<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 12l4 4" /><path d="M12 12l-4 -4" /></svg>
+											</span>
+										</div>
+										<div class="col">
+											<div class="font-weight-medium">F1-Score</div>
+											<div class="text-secondary">~84.5%</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Visualizations (col-6 + col-6) -->
+						<div class="col-md-6">
+							<div class="card">
+								<div class="card-header">
+									<h3 class="card-title">Analisis Parameter (Anda vs Rata-rata)</h3>
+								</div>
+								<div class="card-body">
+									{% if has_result %}
+									<div id="chart-radar" style="min-height: 280px;"></div>
+									<script>
+										document.addEventListener('DOMContentLoaded', function() {
+											var t_med = {{ medians.get('Average_Temperature_C', 25.0) }};
+											var p_med = {{ medians.get('Total_Precipitation_mm', 1200.0) }};
+											var c_med = {{ medians.get('CO2_Emissions_MT', 50.0) }};
+											var e_med = {{ medians.get('Economic_Impact_Million_USD', 500.0) }};
+											
+											var input_data = [
+												Math.min(({{ temp }} / t_med) * 100, 250),
+												Math.min(({{ precip }} / p_med) * 100, 250),
+												Math.min(({{ co2 }} / c_med) * 100, 250),
+												Math.min(({{ economic }} / e_med) * 100, 250)
+											];
+											var avg_data = [100, 100, 100, 100];
+											
+											new ApexCharts(document.querySelector('#chart-radar'), {
+												chart: { type: 'radar', height: 280, toolbar: { show: false }, fontFamily: 'inherit' },
+												series: [{ name: 'Input Anda', data: input_data }, { name: 'Rata-rata Historis', data: avg_data }],
+												labels: ['Suhu', 'Curah Hujan', 'Emisi CO2', 'Dampak Ekonomi'],
+												colors: ['#d63939', 'var(--tblr-primary, #066fd1)'],
+												stroke: { width: 2 },
+												fill: { opacity: 0.2 },
+												markers: { size: 4 },
+												yaxis: { show: false, min: 0 },
+												tooltip: { 
+													y: { formatter: function(val) { return Math.round(val) + "% dari rata-rata"; } },
+													theme: 'dark'
+												}
+											}).render();
+										});
+									</script>
+									{% else %}
+									<div class="empty h-100">
+										<p class="empty-title">Belum Ada Data Input</p>
+										<p class="empty-subtitle text-secondary">Silakan jalankan prediksi di halaman Dashboard terlebih dahulu untuk melihat grafik dinamis perbandingan cuaca Anda.</p>
+									</div>
+									{% endif %}
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6">
+							<div class="card">
+								<div class="card-header">
+									<h3 class="card-title">Confusion Matrix</h3>
+								</div>
+								<div class="card-body p-0 text-center bg-white">
+									<img src="/data/confusion_matrix_eks4.png" alt="Confusion Matrix" class="img-fluid" style="width:100%; border-radius: 0 0 4px 4px;">
+								</div>
+							</div>
+						</div>
+
+						<!-- Chi2 (Full-Width) -->
+						<div class="col-12">
+							<div class="card">
+								<div class="card-header">
+									<h3 class="card-title">Chi-Square Feature Selection</h3>
+								</div>
+								<div class="card-body p-0 text-center bg-white">
+									<img src="/data/chi2_scores.png" alt="Chi2 Scores" class="img-fluid" style="width:100%; max-height: 500px; object-fit: contain; border-radius: 0 0 4px 4px;">
+								</div>
+							</div>
+						</div>
+
+					</div>
+				</div>
+			</div>
+
+			<!-- Footer -->
+			<footer class="footer footer-transparent d-print-none">
+				<div class="container-xl">
+					<div class="row text-center align-items-center flex-row-reverse">
+						<div class="col-lg-auto ms-lg-auto">
+							<ul class="list-inline list-inline-dots mb-0">
+								<li class="list-inline-item"><a href="https://tabler.io" target="_blank" class="link-secondary">Tabler UI</a></li>
+							</ul>
+						</div>
+						<div class="col-12 col-lg-auto mt-3 mt-lg-0">
+							<ul class="list-inline list-inline-dots mb-0">
+								<li class="list-inline-item">
+									Copyright &copy; 2026 Data Mining - Semester 6
+								</li>
+								<li class="list-inline-item">
+									<a href="/" class="link-secondary">v1.0</a>
+								</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</footer>
+		</div>
+		<!-- END: PAGE WRAPPER -->
+
+	</div>
+
+	<!-- BEGIN: THEME CUSTOMIZER -->
+	<a href="#" class="btn btn-primary btn-icon btn-pill position-fixed" style="bottom: 1.5rem; left: 1.5rem; z-index: 1030; width: 3rem; height: 3rem;" data-bs-toggle="offcanvas" data-bs-target="#offcanvasTheme" aria-label="Pengaturan Tema">
+		<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.875 6.27a2.225 2.225 0 0 1 1.125 1.948v7.284c0 .809 -.443 1.555 -1.158 1.948l-6.75 4.27a2.269 2.269 0 0 1 -2.184 0l-6.75 -4.27a2.225 2.225 0 0 1 -1.158 -1.948v-7.285c0 -.809 .443 -1.554 1.158 -1.947l6.75 -3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98h-.033z" /><path d="M12 16v.01" /><path d="M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483" /></svg>
+	</a>
+
+	<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasTheme" aria-labelledby="offcanvasThemeLabel">
+		<div class="offcanvas-header">
+			<h2 class="offcanvas-title" id="offcanvasThemeLabel">Pengaturan Tema</h2>
+			<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+		</div>
+		<div class="offcanvas-body">
+			<div class="mb-4">
+				<label class="form-label fw-bold">Mode warna</label>
+				<p class="text-secondary">Pilih mode warna untuk aplikasi Anda.</p>
+				<div class="form-selectgroup">
+					<label class="form-selectgroup-item">
+						<input type="radio" name="theme-mode" value="light" class="form-selectgroup-input" id="theme-light">
+						<span class="form-selectgroup-label">Terang</span>
+					</label>
+					<label class="form-selectgroup-item">
+						<input type="radio" name="theme-mode" value="dark" class="form-selectgroup-input" id="theme-dark">
+						<span class="form-selectgroup-label">Gelap</span>
+					</label>
+				</div>
+			</div>
+			<div class="mb-4">
+				<label class="form-label fw-bold">Skema warna</label>
+				<p class="text-secondary">Mode warna yang sempurna untuk aplikasi Anda.</p>
+				<div class="row g-2" id="color-scheme-picker">
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#066fd1;width:1.75rem;height:1.75rem;" data-color="#066fd1" title="Blue"></button></div>
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#2fb344;width:1.75rem;height:1.75rem;" data-color="#2fb344" title="Green"></button></div>
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#e74c3c;width:1.75rem;height:1.75rem;" data-color="#e74c3c" title="Red"></button></div>
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#f76707;width:1.75rem;height:1.75rem;" data-color="#f76707" title="Orange"></button></div>
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#ae3ec9;width:1.75rem;height:1.75rem;" data-color="#ae3ec9" title="Purple"></button></div>
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#d6336c;width:1.75rem;height:1.75rem;" data-color="#d6336c" title="Pink"></button></div>
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#0ca678;width:1.75rem;height:1.75rem;" data-color="#0ca678" title="Teal"></button></div>
+					<div class="col-auto"><button type="button" class="btn btn-icon rounded-circle" style="background:#f59f00;width:1.75rem;height:1.75rem;" data-color="#f59f00" title="Yellow"></button></div>
+				</div>
+			</div>
+			<div class="mb-4">
+				<label class="form-label fw-bold">Keluarga font</label>
+				<p class="text-secondary">Pilih keluarga font yang sesuai dengan aplikasi Anda.</p>
+				<div class="form-selectgroup form-selectgroup-boxes d-flex flex-column">
+					<label class="form-selectgroup-item mb-2">
+						<input type="radio" name="theme-font" value="sans-serif" class="form-selectgroup-input" checked>
+						<div class="form-selectgroup-label d-flex align-items-center p-3"><div>Sans-serif</div></div>
+					</label>
+					<label class="form-selectgroup-item mb-2">
+						<input type="radio" name="theme-font" value="serif" class="form-selectgroup-input">
+						<div class="form-selectgroup-label d-flex align-items-center p-3"><div>Serif</div></div>
+					</label>
+					<label class="form-selectgroup-item mb-2">
+						<input type="radio" name="theme-font" value="monospace" class="form-selectgroup-input">
+						<div class="form-selectgroup-label d-flex align-items-center p-3"><div>Monospace</div></div>
+					</label>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- END: THEME CUSTOMIZER -->
+
+	<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js" defer></script>
+	<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		var currentTheme = localStorage.getItem('tablerTheme') || (document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light');
+		var radio = document.getElementById('theme-' + currentTheme);
+		if (radio) radio.checked = true;
+
+		document.querySelectorAll('input[name="theme-mode"]').forEach(function(el) {
+			el.addEventListener('change', function() {
+				document.documentElement.setAttribute('data-bs-theme', this.value);
+				localStorage.setItem('tablerTheme', this.value);
+			});
+		});
+
+		var savedColor = localStorage.getItem('tablerPrimary');
+		if (savedColor) document.documentElement.style.setProperty('--tblr-primary', savedColor);
+
+		document.querySelectorAll('#color-scheme-picker button').forEach(function(btn) {
+			btn.addEventListener('click', function() {
+				var color = this.getAttribute('data-color');
+				document.documentElement.style.setProperty('--tblr-primary', color);
+				localStorage.setItem('tablerPrimary', color);
+			});
+		});
+
+		var savedFont = localStorage.getItem('tablerFont');
+		if (savedFont) {
+			document.body.style.fontFamily = savedFont;
+			var fontRadio = document.querySelector('input[name="theme-font"][value="' + savedFont + '"]');
+			if (fontRadio) fontRadio.checked = true;
+		}
+
+		document.querySelectorAll('input[name="theme-font"]').forEach(function(el) {
+			el.addEventListener('change', function() {
+				document.body.style.fontFamily = this.value;
+				localStorage.setItem('tablerFont', this.value);
+			});
+		});
+	});
+	</script>
+</body>
+</html>

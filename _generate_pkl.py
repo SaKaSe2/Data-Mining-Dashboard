@@ -17,11 +17,13 @@ print("Seleksi Fitur (Chi-Square)...")
 chi2_f, _, _ = run_chi2_selection(df, nf, y)
 
 print("Melatih Model Random Forest terbaik...")
+from sklearn.ensemble import RandomForestClassifier
 tuned_params = {
     'max_depth': 10, 'min_samples_leaf': 2, 'min_samples_split': 5, 'n_estimators': 100,
     'random_state': 42, 'class_weight': 'balanced', 'n_jobs': -1
 }
-_, _, _, m4 = run_experiment('Eks-4: RF + Tuned', 4, df[chi2_f].copy(), y, lc, rf_params=tuned_params)
+rf_model = RandomForestClassifier(**tuned_params)
+_, _, _, m4 = run_experiment('Eks-4: RF + Tuned', 4, df[chi2_f].copy(), y, lc, model=rf_model)
 
 print("Menyimpan ke .pkl...")
 joblib.dump(m4, os.path.join(DATA_DIR, 'best_model.pkl'))
