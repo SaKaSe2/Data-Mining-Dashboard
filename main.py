@@ -216,7 +216,14 @@ async def api_predict_batch():
             "Prediction": p_class,
             "Confidence": round(conf, 2)
         })
-    return {"batch_results": results}
+        
+    df_sample_scatter = DF_VIZ.sample(n=min(100, len(DF_VIZ)), random_state=42)
+    scatter_hist = [
+        {"x": round(float(row['Average_Temperature_C']), 2), "y": round(float(row['Total_Precipitation_mm']), 2)}
+        for _, row in df_sample_scatter.iterrows()
+    ]
+    return {"batch_results": results, "scatter_data": scatter_hist}
+
 
 if __name__ == "__main__":
     import uvicorn

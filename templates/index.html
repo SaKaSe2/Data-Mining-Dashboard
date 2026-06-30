@@ -561,44 +561,8 @@
 									<h2 class="page-title mb-3">Pengujian Model Lanjutan (Sesuai Jupyter Notebook)</h2>
 								</div>
 								
-								<!-- Single Prediction Testing -->
-								<div class="col-md-6">
-									<div class="card" style="height: 100%;">
-										<div class="card-header">
-											<h3 class="card-title">Single Prediction Testing</h3>
-										</div>
-										<div class="card-body">
-											<p class="text-secondary">Skenario: Petani mencoba memprediksi potensi panen berdasarkan data lahan dan iklimnya.</p>
-											<div class="mb-3">
-												<label class="form-label">Data Input (JSON)</label>
-												<textarea id="single-input" class="form-control" rows="8" style="font-family: monospace;">{
-    "Year": 2024,
-    "Country": "Indonesia", 
-    "Region": "Jawa Timur",
-    "Crop_Type": "Rice",
-    "Average_Temperature_C": 28.5,
-    "Total_Precipitation_mm": 2100.5,
-    "CO2_Emissions_MT": 15.2,
-    "Extreme_Weather_Events": 3,
-    "Irrigation_Access_%": 85.0,
-    "Pesticide_Use_KG_per_HA": 12.5,
-    "Fertilizer_Use_KG_per_HA": 45.0,
-    "Soil_Health_Index": 78.5,
-    "Adaptation_Strategies": "Water Management",
-    "Economic_Impact_Million_USD": 500.0
-}</textarea>
-											</div>
-											<button class="btn btn-primary w-100" id="btn-test-single">Jalankan Single Predict</button>
-											
-											<div id="single-result-container" class="mt-3 d-none">
-												<div class="alert alert-info" id="single-result"></div>
-											</div>
-										</div>
-									</div>
-								</div>
-								
 								<!-- Batch Prediction Testing -->
-								<div class="col-md-6">
+								<div class="col-12">
 									<div class="card" style="height: 100%;">
 										<div class="card-header">
 											<h3 class="card-title">Batch Prediction Testing</h3>
@@ -607,22 +571,10 @@
 											<p class="text-secondary">Skenario: Dinas pertanian memprediksi potensi panen dari 5 laporan lahan secara bersamaan (Diambil acak dari dataset historis).</p>
 											<button class="btn btn-success w-100 mb-3" id="btn-test-batch">Jalankan Batch Predict (Simulasi 5 Laporan)</button>
 											
-											<div class="table-responsive d-none" id="batch-result-container">
-												<table class="table table-vcenter card-table table-striped">
-													<thead>
-														<tr>
-															<th>Country</th>
-															<th>Crop</th>
-															<th>Temp (°C)</th>
-															<th>Precip (mm)</th>
-															<th>Fertilizer</th>
-															<th>[PREDIKSI]</th>
-															<th>[KEYAKINAN %]</th>
-														</tr>
-													</thead>
-													<tbody id="batch-result-body">
-													</tbody>
-												</table>
+											<div class="d-none mt-4" id="batch-result-container">
+												<div id="batch-result-body" class="row row-cards">
+													<!-- Batch Results will be injected here -->
+												</div>
 											</div>
 										</div>
 									</div>
@@ -632,36 +584,6 @@
 
 						<script>
 						document.addEventListener('DOMContentLoaded', function() {
-							// Single Prediction
-							document.getElementById('btn-test-single').addEventListener('click', async function() {
-								const btn = this;
-								btn.classList.add('btn-loading');
-								try {
-									const inputData = JSON.parse(document.getElementById('single-input').value);
-									const res = await fetch('/api/predict_single', {
-										method: 'POST',
-										headers: { 'Content-Type': 'application/json' },
-										body: JSON.stringify(inputData)
-									});
-									const data = await res.json();
-									const resultDiv = document.getElementById('single-result-container');
-									const alertBox = document.getElementById('single-result');
-									
-									resultDiv.classList.remove('d-none');
-									if(data.prediction === 'Di Atas Rata-rata') {
-										alertBox.className = 'alert alert-success';
-									} else {
-										alertBox.className = 'alert alert-danger';
-									}
-									alertBox.innerHTML = `<strong>Prediksi:</strong> ${data.prediction} <br><strong>Tingkat Keyakinan:</strong> ${data.confidence}%`;
-									
-								} catch(e) {
-									alert('Format JSON tidak valid atau terjadi kesalahan server.');
-								} finally {
-									btn.classList.remove('btn-loading');
-								}
-							});
-
 							// Batch Prediction
 							document.getElementById('btn-test-batch').addEventListener('click', async function() {
 								const btn = this;
@@ -670,26 +592,156 @@
 									const res = await fetch('/api/predict_batch');
 									const data = await res.json();
 									
-									const tbody = document.getElementById('batch-result-body');
-									tbody.innerHTML = '';
+									const container = document.getElementById('batch-result-body');
+									container.innerHTML = '';
 									
-									data.batch_results.forEach(row => {
-										const tr = document.createElement('tr');
-										const badgeClass = row.Prediction === 'Di Atas Rata-rata' ? 'bg-success' : 'bg-danger';
-										tr.innerHTML = `
-											<td>${row.Country}</td>
-											<td>${row.Crop_Type}</td>
-											<td>${row.Average_Temperature_C}</td>
-											<td>${row.Total_Precipitation_mm}</td>
-											<td>${row.Fertilizer_Use_KG_per_HA}</td>
-											<td><span class="badge ${badgeClass} text-white">${row.Prediction}</span></td>
-											<td><strong>${row.Confidence}%</strong></td>
+									data.batch_results.forEach((row, index) => {
+										const isHigh = row.Prediction === 'Di Atas Rata-rata';
+										const bgClass = isHigh ? 'bg-success-lt' : 'bg-danger-lt';
+										const textClass = isHigh ? 'text-success' : 'text-danger';
+										const badgeClass = isHigh ? 'bg-success' : 'bg-danger';
+										const title = isHigh ? 'Skenario Optimal: Hasil Panen Diprediksi DI ATAS RATA-RATA' : 'Peringatan Bencana: Hasil Panen Diprediksi DI BAWAH RATA-RATA';
+										const desc = isHigh ? 'Musim semi yang cerah! Kondisi iklim saat ini sangat mendukung peningkatan hasil panen secara optimal.' : 'Awas cuaca ekstrem! Parameter iklim menunjukkan anomali (badai/salju) yang berpotensi merusak hasil panen secara masif.';
+										const avatarUrl = isHigh ? 'https://media.giphy.com/media/l41YkxvU8c7J7Bba0/giphy.gif' : 'https://media.giphy.com/media/26BGD4XaoPO3zTz9K/giphy.gif';
+										
+										const gaugeColorHex = isHigh ? '#2fb344' : '#d63939';
+										const gaugeRgba = isHigh ? 'rgba(47, 179, 68, 0.8)' : 'rgba(214, 57, 57, 0.8)';
+										
+										const confidenceId = `chart-batch-conf-${index}`;
+										const scatterId = `chart-batch-scatter-${index}`;
+										
+										const html = `
+										<div class="col-12 mt-4">
+											<div class="card ${bgClass}">
+												<div class="card-body">
+													<div class="row align-items-center">
+														<div class="col-auto">
+															<span class="avatar avatar-xl" style="background-image: url(${avatarUrl}); border-radius: 50%;"></span>
+														</div>
+														<div class="col">
+															<h4 class="text-muted mb-1">${row.Country} - ${row.Crop_Type}</h4>
+															<h3 class="${textClass} mb-1" style="font-size: 1.5rem;">${title}</h3>
+															<p class="text-secondary mb-2">${desc}</p>
+															<span class="badge ${badgeClass} text-white px-3 py-2">Tingkat Kepercayaan: ${row.Confidence}%</span>
+														</div>
+													</div>
+												</div>
+											</div>
+										</div>
+										<div class="col-sm-6 col-lg-6 mt-3">
+											<div class="card premium-gauge-card">
+												<div class="gauge-ambient-glow" style="background: radial-gradient(circle, ${gaugeRgba} 0%, transparent 60%);"></div>
+												<div class="card-header">
+													<h3 class="card-title">
+														<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-activity" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="${gaugeColorHex}" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+															<path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+															<path d="M3 12h4l3 -9l5 18l3 -9h4"></path>
+														</svg>
+														Tingkat Akurasi Prediksi
+													</h3>
+												</div>
+												<div class="card-body">
+													<div id="${confidenceId}" style="min-height: 240px;"></div>
+												</div>
+											</div>
+										</div>
+										<div class="col-sm-6 col-lg-6 mt-3">
+											<div class="card premium-gauge-card">
+												<div class="gauge-ambient-glow" style="background: radial-gradient(circle, ${gaugeRgba} 0%, transparent 60%); opacity: 0.05; width: 350px; height: 350px;"></div>
+												<div class="card-header">
+													<h3 class="card-title">
+														<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-scatter" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="${gaugeColorHex}" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+															<path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+															<path d="M3 3v18h18"></path>
+															<path d="M8 15.015v.015"></path>
+															<path d="M16 16.015v.015"></path>
+															<path d="M8 8.015v.015"></path>
+															<path d="M12 11.015v.015"></path>
+															<path d="M16 7.015v.015"></path>
+														</svg>
+														Pemetaan Cuaca Anda vs Historis
+													</h3>
+												</div>
+												<div class="card-body">
+													<div id="${scatterId}" style="min-height: 240px;"></div>
+												</div>
+											</div>
+										</div>
 										`;
-										tbody.appendChild(tr);
+										container.insertAdjacentHTML('beforeend', html);
+										
+										// Initialize Confidence Chart
+										new ApexCharts(document.querySelector('#' + confidenceId), {
+											chart: { 
+												type: 'radialBar', 
+												height: 280, 
+												fontFamily: 'inherit',
+												animations: { enabled: true, easing: 'easeinout', speed: 800 },
+												dropShadow: { enabled: true, top: 4, left: 0, blur: 5, color: gaugeColorHex, opacity: 0.3 }
+											},
+											series: [row.Confidence],
+											colors: [gaugeColorHex],
+											plotOptions: {
+												radialBar: {
+													startAngle: -135,
+													endAngle: 135,
+													hollow: { margin: 15, size: '65%', background: 'transparent' },
+													track: { 
+														background: 'rgba(150, 150, 150, 0.15)', 
+														strokeWidth: '100%', 
+														margin: 0,
+														dropShadow: { enabled: true, top: 0, left: 0, blur: 3, opacity: 0.2 }
+													},
+													dataLabels: {
+														show: true,
+														name: { offsetY: 25, show: true, color: 'var(--tblr-secondary, #626976)', fontSize: '14px', fontWeight: 600 },
+														value: { offsetY: -10, color: gaugeColorHex, fontSize: '38px', fontWeight: 800, show: true, formatter: function(val) { return val + '%'; } }
+													}
+												}
+											},
+											fill: {
+												type: 'gradient',
+												gradient: {
+													shade: 'dark',
+													type: 'horizontal',
+													shadeIntensity: 0.5,
+													gradientToColors: [isHigh ? '#72e128' : '#ff4d4d'],
+													inverseColors: true,
+													opacityFrom: 1,
+													opacityTo: 1,
+													stops: [0, 100]
+												}
+											},
+											stroke: { lineCap: 'round' },
+											labels: ['Tingkat Kepercayaan']
+										}).render();
+
+										// Initialize Scatter Chart
+										const userPoint = [{ x: row.Average_Temperature_C, y: row.Total_Precipitation_mm }];
+										new ApexCharts(document.querySelector('#' + scatterId), {
+											chart: { type: 'scatter', height: 240, fontFamily: 'inherit', toolbar: { show: false }, zoom: { enabled: false } },
+											series: [
+												{ name: 'Data Historis', data: data.scatter_data },
+												{ name: 'Input (' + row.Country + ')', data: userPoint }
+											],
+											colors: ['var(--tblr-primary, #066fd1)', gaugeColorHex],
+											markers: {
+												size: [5, 8],
+												strokeWidth: [0, 2],
+												strokeColors: ['transparent', '#fff'],
+												shape: 'circle'
+											},
+											xaxis: { title: { text: 'Suhu Rata-rata (C)', style: { fontSize: '12px' } }, tickAmount: 6 },
+											yaxis: { title: { text: 'Curah Hujan (mm)', style: { fontSize: '12px' } }, tickAmount: 5 },
+											legend: { position: 'top', fontSize: '12px' },
+											grid: { borderColor: 'var(--tblr-border-color, #e6e7e9)', strokeDashArray: 4 },
+											tooltip: { theme: 'dark' }
+										}).render();
 									});
 									
 									document.getElementById('batch-result-container').classList.remove('d-none');
 								} catch(e) {
+									console.error(e);
 									alert('Terjadi kesalahan saat memanggil batch prediction.');
 								} finally {
 									btn.classList.remove('btn-loading');
